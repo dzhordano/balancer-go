@@ -1,0 +1,22 @@
+http_server:
+  host: "0.0.0.0"
+  port: 8080
+
+servers:
+  # specify servers that balancer will connect to
+  - url: "0.0.0.0:8081"
+    weight: 1 # represents the weight of the server (optional. default: 1)
+  - url: "0.0.0.0:8082"
+    weight: 2
+  - url: "0.0.0.0:8083"
+    weight: 3
+
+balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weight_round_robin, least_connections, hash)
+
+health_check:
+  interval: 10s
+  timeout: 2s
+
+logging:
+  level: "info"
+  path: "logs/balancer.log"
