@@ -24,8 +24,6 @@ type RoundRobinBalancer struct {
 }
 
 func (rr *RoundRobinBalancer) SetServers(servers []Server) {
-	rr.mu.Lock()
-	defer rr.mu.Unlock()
 	rr.servers = servers
 	rr.index = 0
 }
@@ -103,52 +101,97 @@ func (rr *RoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.D
 	}
 }
 
-// type WeightedRoundRobinBalancer struct {
-// 	servers []Server
-// 	weights []int
-// 	index   int
-// 	current int
-// 	mu      sync.Mutex
-// }
+type WeightedRoundRobinBalancer struct {
+	servers []Server
+	index   int
+	current int // Nth request number
+	mu      sync.Mutex
+}
 
-// func (wrr *WeightedRoundRobinBalancer) SetServers(servers []Server) {
-// 	wrr.mu.Lock()
-// 	defer wrr.mu.Unlock()
+func (wrr *WeightedRoundRobinBalancer) SetServers(servers []Server) {
+	wrr.servers = servers
 
-// 	aliveServers := getAliveServers(servers)
-// 	wrr.servers = aliveServers
+	wrr.index = 0
+	wrr.current = 1
+}
 
-// 	wrr.weights = make([]int, len(aliveServers))
-// 	for i := range aliveServers {
-// 		wrr.weights[i] = aliveServers[i].Weight
-// 	}
+func (wrr *WeightedRoundRobinBalancer) SelectServer(args ...interface{}) *Server {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
 
-// 	wrr.index = 0
-// 	wrr.current = 0
-// }
+	if len(wrr.servers) == 0 {
+		return nil
+	}
 
-// func (wrr *WeightedRoundRobinBalancer) SelectServer(args ...interface{}) *Server {
-// 	wrr.mu.Lock()
-// 	defer wrr.mu.Unlock()
+	server := &wrr.servers[wrr.index]
+	if wrr.current >= server.Weight {
+		wrr.index = (wrr.index + 1) % len(wrr.servers)
+		wrr.current = 1
+	} else {
+		wrr.current++
+	}
 
-// 	if len(wrr.servers) == 0 {
-// 		return nil
-// 	}
+	return server
+}
 
-// 	for {
-// 		wrr.index = (wrr.index + 1) % len(wrr.servers)
-// 		if wrr.index == 0 {
-// 			wrr.current--
-// 			if wrr.current <= 0 {
-// 				wrr.current = wrr.weights[wrr.index]
-// 			}
-// 		}
+func (wrr *WeightedRoundRobinBalancer) Servers() []Server {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
+	return wrr.servers
+}
 
-// 		if wrr.weights[wrr.index] >= wrr.current {
-// 			return &wrr.servers[wrr.index]
-// 		}
-// 	}
-// }
+func (wrr *WeightedRoundRobinBalancer) RemoveServer(index int) {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
+	wrr.servers = append(wrr.servers[:index], wrr.servers[index+1:]...)
+	if len(wrr.servers) == 0 {
+		wrr.index = 0
+		return
+	}
+	wrr.index = (wrr.index) % len(wrr.servers)
+}
+
+func (wrr *WeightedRoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
+	time.Sleep(interval)
+
+	for {
+		servers := wrr.Servers()
+		if len(servers) == 0 {
+			return
+		}
+
+		for i := range servers {
+			start := time.Now()
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", wrr.servers[i].URL))
+			if err != nil {
+				slog.Error("failed to get health", slog.Any("server", wrr.servers[i].URL), slog.Any("error", err))
+
+				wrr.RemoveServer(i)
+				break
+			}
+			resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				slog.Error("server is not alive", slog.Any("server", wrr.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+
+				wrr.RemoveServer(i)
+				break
+			}
+
+			elapsed := time.Since(start)
+			if elapsed > timeout {
+				slog.Error("server is not alive", slog.Any("server", wrr.servers[i].URL), slog.Any("elapsed", elapsed))
+
+				wrr.RemoveServer(i)
+				break
+			}
+
+			fmt.Println("ALIVE", wrr.servers[i].URL)
+		}
+
+		time.Sleep(interval)
+	}
+}
 
 // FIXME
 // type LeastConnectionsBalancer struct {

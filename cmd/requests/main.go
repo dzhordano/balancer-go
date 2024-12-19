@@ -8,9 +8,9 @@ import (
 )
 
 func main() {
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 1000; i++ {
 		time.Sleep(500 * time.Millisecond)
-		reader := strings.NewReader(`{"body":123}`)
+		reader := strings.NewReader("")
 		request, _ := http.NewRequest("GET", "http://localhost:8080/resource1", reader)
 		client := &http.Client{}
 		resp, _ := client.Do(request)

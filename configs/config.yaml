@@ -11,10 +11,10 @@ servers:
   - url: "localhost:8083"
     weight: 3
 
-balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
+balancing_alg: "weighted_round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
 
 health_check:
-  interval: 5s
+  interval: 2s
   timeout: 2s
 
 logging:

@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -22,28 +21,13 @@ const (
 type Server struct {
 	URL    string
 	Weight int
-	Alive  bool
-	mu     sync.RWMutex
 }
 
 func NewServer(url string, weight int) *Server {
 	return &Server{
 		URL:    url,
 		Weight: weight,
-		Alive:  true,
 	}
-}
-
-func (s *Server) SetAlive(v bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Alive = v
-}
-
-func (s *Server) IsAlive() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.Alive
 }
 
 type balancerHandler struct {
@@ -56,8 +40,8 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 	switch alg {
 	case roundRobinAlg:
 		balancer = &RoundRobinBalancer{}
-	// case weightedRoundRobinAlg:
-	// 	balancer = &WeightedRoundRobinBalancer{}
+	case weightedRoundRobinAlg:
+		balancer = &WeightedRoundRobinBalancer{}
 	// case leastConnAlg:
 	// 	balancer = &LeastConnectionsBalancer{}
 	// case hashAlg:
