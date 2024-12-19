@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -266,4 +267,133 @@ func (hb *HashBalancer) SelectServer(args ...interface{}) *Server {
 	return &hb.servers[index]
 }
 
+func (hb *HashBalancer) Servers() []Server {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	return hb.servers
+}
+
+func (hb *HashBalancer) RemoveServer(index int) {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	hb.servers = append(hb.servers[:index], hb.servers[index+1:]...)
+}
+
+func (hb *HashBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
+	time.Sleep(interval)
+
+	for {
+		servers := hb.Servers()
+		if len(servers) == 0 {
+			return
+		}
+
+		for i := range servers {
+			start := time.Now()
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", hb.servers[i].URL))
+			if err != nil {
+				slog.Error("failed to get health", slog.Any("server", hb.servers[i].URL), slog.Any("error", err))
+
+				hb.RemoveServer(i)
+				break
+			}
+			resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				slog.Error("server is not alive", slog.Any("server", hb.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+
+				hb.RemoveServer(i)
+				break
+			}
+
+			elapsed := time.Since(start)
+			if elapsed > timeout {
+				slog.Error("server is not alive", slog.Any("server", hb.servers[i].URL), slog.Any("elapsed", elapsed))
+
+				hb.RemoveServer(i)
+				break
+			}
+
+			fmt.Println("ALIVE", hb.servers[i].URL)
+		}
+
+		time.Sleep(interval)
+	}
+}
+
 // TODO impl random
+type RandomBalancer struct {
+	servers []Server
+	mu      sync.Mutex
+}
+
+func (rb *RandomBalancer) SetServers(servers []Server) {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.servers = servers
+}
+
+func (rb *RandomBalancer) SelectServer(args ...interface{}) *Server {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+
+	if len(rb.servers) == 0 {
+		return nil
+	}
+
+	return &rb.servers[rand.Intn(len(rb.servers))]
+}
+
+func (rb *RandomBalancer) Servers() []Server {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	return rb.servers
+}
+
+func (rb *RandomBalancer) RemoveServer(index int) {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.servers = append(rb.servers[:index], rb.servers[index+1:]...)
+}
+
+func (rb *RandomBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
+	time.Sleep(interval)
+
+	for {
+		servers := rb.Servers()
+		if len(servers) == 0 {
+			return
+		}
+
+		for i := range servers {
+			start := time.Now()
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", rb.servers[i].URL))
+			if err != nil {
+				slog.Error("failed to get health", slog.Any("server", rb.servers[i].URL), slog.Any("error", err))
+
+				rb.RemoveServer(i)
+				break
+			}
+			resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				slog.Error("server is not alive", slog.Any("server", rb.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+
+				rb.RemoveServer(i)
+				break
+			}
+
+			elapsed := time.Since(start)
+			if elapsed > timeout {
+				slog.Error("server is not alive", slog.Any("server", rb.servers[i].URL), slog.Any("elapsed", elapsed))
+
+				rb.RemoveServer(i)
+				break
+			}
+
+			fmt.Println("ALIVE", rb.servers[i].URL)
+		}
+
+		time.Sleep(interval)
+	}
+}

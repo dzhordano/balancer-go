@@ -44,11 +44,11 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 		balancer = &WeightedRoundRobinBalancer{}
 	// case leastConnAlg:
 	// 	balancer = &LeastConnectionsBalancer{}
-	// case hashAlg:
-	// 	balancer = &HashBalancer{}
+	case hashAlg:
+		balancer = &HashBalancer{}
 	// TODO
-	// case randomAlg:
-	// 	balancer = NewRandomBalancer(servers)
+	case randomAlg:
+		balancer = &RandomBalancer{}
 	default:
 		log.Error("unknown balancing algorithm", slog.String("algorithm", alg))
 		return nil
