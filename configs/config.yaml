@@ -1,20 +1,20 @@
 http_server:
-  host: "0.0.0.0"
+  host: "localhost"
   port: 8080
 
 servers:
   # specify servers that balancer will connect to
-  - url: "0.0.0.0:8081"
+  - url: "localhost:8081"
     weight: 1 # represents the weight of the server (optional. default: 1)
-  - url: "0.0.0.0:8082"
+  - url: "localhost:8082"
     weight: 2
-  - url: "0.0.0.0:8083"
+  - url: "localhost:8083"
     weight: 3
 
-balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weight_round_robin, least_connections, hash)
+balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
 
 health_check:
-  interval: 10s
+  interval: 5s
   timeout: 2s
 
 logging:

@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -29,8 +30,8 @@ type Server struct {
 }
 
 type Health struct {
-	Interval string `yaml:"interval"` // interval between health checks
-	Timeout  string `yaml:"timeout"`  // timeout for health checks
+	Interval time.Duration `yaml:"interval"` // interval between health checks
+	Timeout  time.Duration `yaml:"timeout"`  // timeout for health checks (optional. default: 2s)        `yaml:"timeout"`  // timeout for health checks
 }
 
 type Logging struct {
