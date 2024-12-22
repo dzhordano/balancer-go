@@ -2,6 +2,13 @@ http_server:
   host: "localhost"
   port: 8080
 
+https_server:
+  host: "localhost"
+  port: 8443
+  cert_file: "server.crt"
+  key_file: "server.key"
+
+
 servers:
   - url: "localhost:8081"
     weight: 1
@@ -17,8 +24,11 @@ health_check:
   timeout: 2s
 
 logging:
-  level: "debug"
-  path: "logs/test2.log"
+  rewrite: true 
+  level: "info" 
+  path: "logs/" 
+  file: "server.log" 
 
-servers_outage:
-  after: 10
+servers_outage:    
+  after: 1        
+  multiplier: 1.2  

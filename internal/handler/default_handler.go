@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -30,7 +31,7 @@ func DefaultRoutes() http.Handler {
 	r.Get("/resource1", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
 
 		// Псевдо-задержка.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
 
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
