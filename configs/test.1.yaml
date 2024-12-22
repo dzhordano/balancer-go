@@ -27,7 +27,8 @@ logging:
   level: "info" 
   path: "logs/" 
   file: "server.log" 
+  file_tls: "server_tls.log"
 
 servers_outage:    
-  after: 5
+  after: 10
   multiplier: 1.5

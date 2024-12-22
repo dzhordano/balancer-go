@@ -6,12 +6,12 @@ import (
 	"net/http"
 )
 
-type httpServer struct {
+type HTTPServer struct {
 	httpServer *http.Server
 }
 
-func NewHTTPServer(addr string, handler http.Handler) *httpServer {
-	return &httpServer{
+func NewHTTPServer(addr string, handler http.Handler) *HTTPServer {
+	return &HTTPServer{
 		httpServer: &http.Server{
 			Addr:    addr,
 			Handler: handler,
@@ -19,7 +19,7 @@ func NewHTTPServer(addr string, handler http.Handler) *httpServer {
 	}
 }
 
-func NewHTTPServerWithTLS(addr, certFile, keyFile string, handler http.Handler) *httpServer {
+func NewHTTPServerWithTLS(addr, certFile, keyFile string, handler http.Handler) *HTTPServer {
 	cfg := &tls.Config{
 		MinVersion:               tls.VersionTLS12,
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
@@ -32,7 +32,7 @@ func NewHTTPServerWithTLS(addr, certFile, keyFile string, handler http.Handler) 
 		},
 	}
 
-	return &httpServer{
+	return &HTTPServer{
 		httpServer: &http.Server{
 			Addr:      addr,
 			Handler:   handler,
@@ -41,10 +41,10 @@ func NewHTTPServerWithTLS(addr, certFile, keyFile string, handler http.Handler) 
 	}
 }
 
-func (s *httpServer) Run() error {
+func (s *HTTPServer) Run() error {
 	return s.httpServer.ListenAndServe()
 }
 
-func (s *httpServer) Shutdown(ctx context.Context) error {
+func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }

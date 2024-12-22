@@ -98,7 +98,7 @@ func (b *balancerHandler) forwardRequest(w http.ResponseWriter, r *http.Request)
 	defer server.DecrementConnections()
 
 	targetURL := fmt.Sprintf("http://%s%s", server.URL, r.URL.Path)
-	fmt.Println("forwarding request to", targetURL)
+	//fmt.Println("forwarding request to", targetURL)
 	req, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
 		http.Error(w, "failed to create request", http.StatusInternalServerError)
