@@ -1,9 +1,0 @@
-{"time":"2024-12-22T22:30:32.053500667+03:00","level":"INFO","msg":"starting http server","server number":1,"server url":"localhost:8081"}
-{"time":"2024-12-22T22:30:32.053563518+03:00","level":"INFO","msg":"starting balancer http server","server url":"localhost:8080"}
-{"time":"2024-12-22T22:30:32.053516357+03:00","level":"INFO","msg":"starting prometheus metrics endpoint on /metrics"}
-{"time":"2024-12-22T22:30:32.053518607+03:00","level":"INFO","msg":"starting http server","server number":3,"server url":"localhost:8083"}
-{"time":"2024-12-22T22:30:32.053530737+03:00","level":"INFO","msg":"starting https server","server url":"localhost:8443"}
-{"time":"2024-12-22T22:30:32.053540428+03:00","level":"INFO","msg":"starting http server","server number":2,"server url":"localhost:8082"}
-{"time":"2024-12-22T22:30:33.054791007+03:00","level":"ERROR","msg":"error runnning http server","server url":"localhost:8082","error":"http: Server closed"}
-{"time":"2024-12-22T22:30:33.054812288+03:00","level":"ERROR","msg":"error runnning http server","server url":"localhost:8081","error":"http: Server closed"}
-{"time":"2024-12-22T22:30:33.054819808+03:00","level":"ERROR","msg":"error runnning http server","server url":"localhost:8083","error":"http: Server closed"}
