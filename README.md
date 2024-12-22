@@ -1,6 +1,6 @@
 ## Usage
 
-- specify config in configs/(config.yaml for default default) (everything your need to specify is in internal/config/config.go or see configs/config.yaml for example)
+- specify config in configs/[**config.yaml** for default] (everything your need to specify is in **internal/config/config.go** or see **configs/config.yaml** for example)
 - make run (if **make** is installed)
 - go run ./cmd/app/main.go (-c=configs/test.1.yaml for specific config)
 
