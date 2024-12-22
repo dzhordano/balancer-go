@@ -7,16 +7,13 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
-const (
-	configPath = "configs/config.yaml"
-)
-
 type Config struct {
-	HTTPServer   HTTP     `yaml:"http_server"`   // http server config
-	Servers      []Server `yaml:"servers"`       // list of servers to connect to
-	BalancingAlg string   `yaml:"balancing_alg"` // balancing algorithm to use
-	HealthCheck  Health   `yaml:"health_check"`  // health check config
-	Logging      Logging  `yaml:"logging"`       // logging config
+	HTTPServer    HTTP         `yaml:"http_server"`
+	Servers       []Server     `yaml:"servers"`       // list of servers to connect to
+	BalancingAlg  string       `yaml:"balancing_alg"` // balancing algorithm to use
+	HealthCheck   Health       `yaml:"health_check"`
+	Logging       Logging      `yaml:"logging"`
+	ServersOutage ServerOutage `yaml:"servers_outage"`
 }
 
 type HTTP struct {
@@ -39,7 +36,12 @@ type Logging struct {
 	Path  string `yaml:"path"`  // path to log file
 }
 
-func NewConfig() *Config {
+type ServerOutage struct {
+	After      float64 `yaml:"after"`      // 'how many' seconds to wait till server outage
+	Multiplier float64 `yaml:"multiplier"` // 'how much times' to mutiply time after last outage
+}
+
+func NewConfig(configPath string) *Config {
 	var cfg Config
 
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {

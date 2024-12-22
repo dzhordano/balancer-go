@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,8 +20,21 @@ const (
 )
 
 type Server struct {
-	URL    string
-	Weight int
+	URL               string
+	ActiveConnections int64
+	Weight            int
+}
+
+func (s *Server) IncrementConnections() {
+	atomic.AddInt64(&s.ActiveConnections, 1)
+}
+
+func (s *Server) DecrementConnections() {
+	atomic.AddInt64(&s.ActiveConnections, -1)
+}
+
+func (s *Server) CurrentConnections() int64 {
+	return atomic.LoadInt64(&s.ActiveConnections)
 }
 
 func NewServer(url string, weight int) *Server {
@@ -42,11 +56,10 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 		balancer = &RoundRobinBalancer{}
 	case weightedRoundRobinAlg:
 		balancer = &WeightedRoundRobinBalancer{}
-	// case leastConnAlg:
-	// 	balancer = &LeastConnectionsBalancer{}
+	case leastConnAlg:
+		balancer = &LeastConnectionsBalancer{}
 	case hashAlg:
 		balancer = &HashBalancer{}
-	// TODO
 	case randomAlg:
 		balancer = &RandomBalancer{}
 	default:
@@ -80,6 +93,9 @@ func (b *balancerHandler) forwardRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "no available servers", http.StatusServiceUnavailable)
 		return
 	}
+
+	server.IncrementConnections()
+	defer server.DecrementConnections()
 
 	targetURL := fmt.Sprintf("http://%s%s", server.URL, r.URL.Path)
 	fmt.Println("forwarding request to", targetURL)

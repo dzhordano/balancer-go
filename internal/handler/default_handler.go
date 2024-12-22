@@ -26,17 +26,17 @@ func DefaultRoutes() http.Handler {
 		w.Write([]byte("ok"))
 	})
 
-	r.Get("/resource1", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/resource1", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
 		w.Write([]byte("resource1\n"))
-	})
+	}))
 
-	r.Get("/resource2", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/resource2", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
 		w.Write([]byte("resource2\n"))
-	})
+	}))
 
 	return r
 }

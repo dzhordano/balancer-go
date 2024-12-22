@@ -73,7 +73,7 @@ func (rr *RoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.D
 			start := time.Now()
 			resp, err := http.Get(fmt.Sprintf("http://%s/health", rr.servers[i].URL))
 			if err != nil {
-				slog.Error("failed to get health", slog.Any("server", rr.servers[i].URL), slog.Any("error", err))
+				slog.Info("failed to get health check", slog.String("server", rr.servers[i].URL), slog.String("error", err.Error()))
 
 				rr.RemoveServer(i)
 				break
@@ -81,7 +81,7 @@ func (rr *RoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.D
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				slog.Error("server is not alive", slog.Any("server", rr.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+				slog.Info("server is not alive", slog.String("server", rr.servers[i].URL), slog.Int("status_code", resp.StatusCode))
 
 				rr.RemoveServer(i)
 				break
@@ -89,13 +89,11 @@ func (rr *RoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.D
 
 			elapsed := time.Since(start)
 			if elapsed > timeout {
-				slog.Error("server is not alive", slog.Any("server", rr.servers[i].URL), slog.Any("elapsed", elapsed))
+				slog.Info("server is not alive", slog.String("server", rr.servers[i].URL), slog.Duration("elapsed", elapsed))
 
 				rr.RemoveServer(i)
 				break
 			}
-
-			fmt.Println("ALIVE", rr.servers[i].URL)
 		}
 
 		time.Sleep(interval)
@@ -151,7 +149,6 @@ func (wrr *WeightedRoundRobinBalancer) RemoveServer(index int) {
 	}
 	wrr.index = (wrr.index) % len(wrr.servers)
 }
-
 func (wrr *WeightedRoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
 	time.Sleep(interval)
 
@@ -165,7 +162,7 @@ func (wrr *WeightedRoundRobinBalancer) HealthCheck(interval time.Duration, timeo
 			start := time.Now()
 			resp, err := http.Get(fmt.Sprintf("http://%s/health", wrr.servers[i].URL))
 			if err != nil {
-				slog.Error("failed to get health", slog.Any("server", wrr.servers[i].URL), slog.Any("error", err))
+				slog.Info("failed to get health check", slog.String("server", wrr.servers[i].URL), slog.String("error", err.Error()))
 
 				wrr.RemoveServer(i)
 				break
@@ -173,7 +170,7 @@ func (wrr *WeightedRoundRobinBalancer) HealthCheck(interval time.Duration, timeo
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				slog.Error("server is not alive", slog.Any("server", wrr.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+				slog.Info("server is not alive", slog.String("server", wrr.servers[i].URL), slog.Int("status_code", resp.StatusCode))
 
 				wrr.RemoveServer(i)
 				break
@@ -181,57 +178,102 @@ func (wrr *WeightedRoundRobinBalancer) HealthCheck(interval time.Duration, timeo
 
 			elapsed := time.Since(start)
 			if elapsed > timeout {
-				slog.Error("server is not alive", slog.Any("server", wrr.servers[i].URL), slog.Any("elapsed", elapsed))
+				slog.Info("server is not alive", slog.String("server", wrr.servers[i].URL), slog.Duration("elapsed", elapsed))
 
 				wrr.RemoveServer(i)
 				break
 			}
-
-			fmt.Println("ALIVE", wrr.servers[i].URL)
 		}
 
 		time.Sleep(interval)
 	}
 }
 
-// FIXME
-// type LeastConnectionsBalancer struct {
-// 	mu        *sync.Mutex
-// 	connCount map[string]int // Хранит количество соединений для каждого сервера
-// }
+type LeastConnectionsBalancer struct {
+	mu        sync.Mutex
+	servers   []Server
+	connCount map[string]int // Хранит количество соединений для каждого сервера
+}
 
-// func NewLeastConnectionsBalancer(args ...interface{}) *LeastConnectionsBalancer {
-// 	return &LeastConnectionsBalancer{
-// 		mu:        &sync.Mutex{},
-// 		connCount: make(map[string]int)}
-// }
+func (lc *LeastConnectionsBalancer) SetServers(servers []Server) {
+	lc.servers = servers
+	lc.connCount = make(map[string]int, len(servers))
+}
 
-// func (lc *LeastConnectionsBalancer) SelectServer(args ...interface{}) *Server {
-// 	lc.mu.Lock()
-// 	defer lc.mu.Unlock()
+func (lc *LeastConnectionsBalancer) SelectServer(args ...interface{}) *Server {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
 
-// 	aliveServers := getAliveServers(servers)
-// 	if len(aliveServers) == 0 {
-// 		return nil
-// 	}
+	if len(lc.servers) == 0 {
+		return nil
+	}
 
-// 	servers = &aliveServers
+	minConns := int(^uint(0) >> 1) // Max Int
+	var server *Server
 
-// 	var selected *Server
-// 	minConnections := int(^uint(0) >> 1) // Max Int
+	for _, srv := range lc.servers {
+		if lc.connCount[srv.URL] < minConns {
+			minConns = lc.connCount[srv.URL]
+			server = &srv
+		}
+	}
 
-// 	for _, srv := range aliveServers {
-// 		if lc.connCount[srv.URL] < minConnections {
-// 			minConnections = lc.connCount[srv.URL]
-// 			selected = &srv
-// 		}
-// 	}
+	fmt.Println("CURRENT CONNS:", lc.connCount)
 
-// 	if selected != nil {
-// 		lc.connCount[selected.URL]++
-// 	}
-// 	return selected
-// }
+	return server
+}
+
+func (lc *LeastConnectionsBalancer) Servers() []Server {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	return lc.servers
+}
+
+func (lc *LeastConnectionsBalancer) RemoveServer(index int) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	lc.servers = append(lc.servers[:index], lc.servers[index+1:]...)
+}
+
+func (lc *LeastConnectionsBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
+	time.Sleep(interval)
+
+	for {
+		servers := lc.Servers()
+		if len(servers) == 0 {
+			return
+		}
+
+		for i := range servers {
+			start := time.Now()
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", lc.servers[i].URL))
+			if err != nil {
+				slog.Info("failed to get health check", slog.String("server", lc.servers[i].URL), slog.String("error", err.Error()))
+
+				lc.RemoveServer(i)
+				break
+			}
+			resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				slog.Info("server is not alive", slog.String("server", lc.servers[i].URL), slog.Int("status_code", resp.StatusCode))
+
+				lc.RemoveServer(i)
+				break
+			}
+
+			elapsed := time.Since(start)
+			if elapsed > timeout {
+				slog.Info("server is not alive", slog.String("server", lc.servers[i].URL), slog.Duration("elapsed", elapsed))
+
+				lc.RemoveServer(i)
+				break
+			}
+		}
+
+		time.Sleep(interval)
+	}
+}
 
 type HashBalancer struct {
 	servers []Server
@@ -292,7 +334,7 @@ func (hb *HashBalancer) HealthCheck(interval time.Duration, timeout time.Duratio
 			start := time.Now()
 			resp, err := http.Get(fmt.Sprintf("http://%s/health", hb.servers[i].URL))
 			if err != nil {
-				slog.Error("failed to get health", slog.Any("server", hb.servers[i].URL), slog.Any("error", err))
+				slog.Info("failed to get health check", slog.String("server", hb.servers[i].URL), slog.String("error", err.Error()))
 
 				hb.RemoveServer(i)
 				break
@@ -300,7 +342,7 @@ func (hb *HashBalancer) HealthCheck(interval time.Duration, timeout time.Duratio
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				slog.Error("server is not alive", slog.Any("server", hb.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+				slog.Info("server is not alive", slog.String("server", hb.servers[i].URL), slog.Int("status_code", resp.StatusCode))
 
 				hb.RemoveServer(i)
 				break
@@ -308,13 +350,11 @@ func (hb *HashBalancer) HealthCheck(interval time.Duration, timeout time.Duratio
 
 			elapsed := time.Since(start)
 			if elapsed > timeout {
-				slog.Error("server is not alive", slog.Any("server", hb.servers[i].URL), slog.Any("elapsed", elapsed))
+				slog.Info("server is not alive", slog.String("server", hb.servers[i].URL), slog.Duration("elapsed", elapsed))
 
 				hb.RemoveServer(i)
 				break
 			}
-
-			fmt.Println("ALIVE", hb.servers[i].URL)
 		}
 
 		time.Sleep(interval)
@@ -327,71 +367,69 @@ type RandomBalancer struct {
 	mu      sync.Mutex
 }
 
-func (rb *RandomBalancer) SetServers(servers []Server) {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
-	rb.servers = servers
+func (hb *RandomBalancer) SetServers(servers []Server) {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	hb.servers = servers
 }
 
-func (rb *RandomBalancer) SelectServer(args ...interface{}) *Server {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
+func (hb *RandomBalancer) SelectServer(args ...interface{}) *Server {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
 
-	if len(rb.servers) == 0 {
+	if len(hb.servers) == 0 {
 		return nil
 	}
 
-	return &rb.servers[rand.Intn(len(rb.servers))]
+	return &hb.servers[rand.Intn(len(hb.servers))]
 }
 
-func (rb *RandomBalancer) Servers() []Server {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
-	return rb.servers
+func (hb *RandomBalancer) Servers() []Server {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	return hb.servers
 }
 
-func (rb *RandomBalancer) RemoveServer(index int) {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
-	rb.servers = append(rb.servers[:index], rb.servers[index+1:]...)
+func (hb *RandomBalancer) RemoveServer(index int) {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	hb.servers = append(hb.servers[:index], hb.servers[index+1:]...)
 }
 
-func (rb *RandomBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
+func (hb *RandomBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
 	time.Sleep(interval)
 
 	for {
-		servers := rb.Servers()
+		servers := hb.Servers()
 		if len(servers) == 0 {
 			return
 		}
 
 		for i := range servers {
 			start := time.Now()
-			resp, err := http.Get(fmt.Sprintf("http://%s/health", rb.servers[i].URL))
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", hb.servers[i].URL))
 			if err != nil {
-				slog.Error("failed to get health", slog.Any("server", rb.servers[i].URL), slog.Any("error", err))
+				slog.Info("failed to get health check", slog.String("server", hb.servers[i].URL), slog.String("error", err.Error()))
 
-				rb.RemoveServer(i)
+				hb.RemoveServer(i)
 				break
 			}
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				slog.Error("server is not alive", slog.Any("server", rb.servers[i].URL), slog.Any("status_code", resp.StatusCode))
+				slog.Info("server is not alive", slog.String("server", hb.servers[i].URL), slog.Int("status_code", resp.StatusCode))
 
-				rb.RemoveServer(i)
+				hb.RemoveServer(i)
 				break
 			}
 
 			elapsed := time.Since(start)
 			if elapsed > timeout {
-				slog.Error("server is not alive", slog.Any("server", rb.servers[i].URL), slog.Any("elapsed", elapsed))
+				slog.Info("server is not alive", slog.String("server", hb.servers[i].URL), slog.Duration("elapsed", elapsed))
 
-				rb.RemoveServer(i)
+				hb.RemoveServer(i)
 				break
 			}
-
-			fmt.Println("ALIVE", rb.servers[i].URL)
 		}
 
 		time.Sleep(interval)
