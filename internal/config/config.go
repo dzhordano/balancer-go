@@ -7,6 +7,10 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
+const (
+	defaultConfigsPath = "configs/config.yaml"
+)
+
 type Config struct {
 	HTTPServer    HTTP         `yaml:"http_server"`
 	HTTPSServer   HTTPS        `yaml:"https_server"`
@@ -40,8 +44,10 @@ type Health struct {
 }
 
 type Logging struct {
-	Level string `yaml:"level"` // logging level
-	Path  string `yaml:"path"`  // path to log file
+	Rewrite bool   `yaml:"rewrite"`
+	Level   string `yaml:"level"` // logging level
+	Path    string `yaml:"path"`  // path to log file
+	File    string `yaml:"file"`  // file to log to
 }
 
 type ServerOutage struct {
@@ -51,6 +57,11 @@ type ServerOutage struct {
 
 func NewConfig(configPath string) *Config {
 	var cfg Config
+
+	if configPath == "" {
+		log.Printf("config path is empty, using default path: %s", defaultConfigsPath)
+		configPath = defaultConfigsPath
+	}
 
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
 		log.Fatalf("error reading config file: %s", err)

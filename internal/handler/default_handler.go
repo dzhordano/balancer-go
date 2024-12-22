@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -27,6 +28,10 @@ func DefaultRoutes() http.Handler {
 	})
 
 	r.Get("/resource1", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
+
+		// Псевдо-задержка.
+		time.Sleep(100 * time.Millisecond)
+
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
 		w.Write([]byte("resource1\n"))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -21,22 +22,58 @@ import (
 
 var (
 	flagConfigPath string
-
-	defaultConfigPath = "configs/config.yaml"
 )
 
 func main() {
 	// Парсинг аргумента для передачи пути к файлу конфигурации.
 	//При отсутствии флага устанавлитвается значение по умолчанию (defaultConfigPath).
-	flag.StringVar(&flagConfigPath, "c", defaultConfigPath, "path to config file")
+	flag.StringVar(&flagConfigPath, "c", "", "path to config file")
 	flag.Parse()
 
 	// Инициализация и чтение конфигурации.
 	cfg := config.NewConfig(flagConfigPath)
 
+	// Check if path exists, if not - create.
+	if _, err := os.Stat(cfg.Logging.Path); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(cfg.Logging.Path, 0755); err != nil {
+				log.Fatalf("error creating directory: %s", err)
+			}
+		} else {
+			log.Fatalf("error checking path: %s", err)
+		}
+	}
+
+	// Check if file exists, if not - create.
+	if _, err := os.Stat(cfg.Logging.Path + cfg.Logging.File); err != nil {
+		if os.IsNotExist(err) {
+			if _, err := os.Create(cfg.Logging.Path + cfg.Logging.File); err != nil {
+				log.Fatalf("error creating file: %s", err)
+			}
+		} else {
+			log.Fatalf("error checking file: %s", err)
+		}
+	}
+
+	if cfg.Logging.Rewrite {
+		if err := os.Remove(cfg.Logging.Path + cfg.Logging.File); err != nil {
+			log.Fatalf("error removing file: %s", err)
+		}
+		if _, err := os.Create(cfg.Logging.Path + cfg.Logging.File); err != nil {
+			log.Fatalf("error creating file: %s", err)
+		}
+	}
+
+	// Файл для хранения логов.
+	f, err := os.OpenFile(cfg.Logging.Path+cfg.Logging.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("error opening file: %s", err)
+	}
+	defer f.Close()
+
 	// Инициализация логгера.
 	log := logger.NewSlogLogger(
-		os.Stdout,
+		f,
 		cfg.Logging.Level,
 	)
 
