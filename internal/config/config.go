@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	HTTPServer    HTTP         `yaml:"http_server"`
+	HTTPSServer   HTTPS        `yaml:"https_server"`
 	Servers       []Server     `yaml:"servers"`       // list of servers to connect to
 	BalancingAlg  string       `yaml:"balancing_alg"` // balancing algorithm to use
 	HealthCheck   Health       `yaml:"health_check"`
@@ -19,6 +20,13 @@ type Config struct {
 type HTTP struct {
 	Host string `yaml:"host"` // host to listen on
 	Port string `yaml:"port"` // port to listen on
+}
+
+type HTTPS struct {
+	Host     string `yaml:"host"` // host to listen on
+	Port     string `yaml:"port"` // port to listen on
+	CertFile string `yaml:"cert_file"`
+	KeyFile  string `yaml:"key_file"`
 }
 
 type Server struct {

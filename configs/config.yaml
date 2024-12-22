@@ -2,6 +2,12 @@ http_server:
   host: "localhost"
   port: 8080
 
+https_server:
+  host: "localhost"
+  port: 8443
+  cert_file: "server.crt"
+  key_file: "server.key"
+
 servers:
   # specify servers that balancer will connect to
   - url: "localhost:8081"
@@ -25,7 +31,7 @@ servers:
   # - url: "localhost:8090"
   #   weight: 1
 
-balancing_alg: "least_connections" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
+balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
 
 health_check:
   interval: 5s
@@ -36,5 +42,5 @@ logging:
   path: "logs/balancer.log"
 
 servers_outage:    # Используется для имитации сбоя работы серверов.
-  after: 10        # Время в секундах (целое число), через которое будет происходить сбой. Установить -1 для отключения имитации.
-  multiplier: 1.2 # Коэффициент увеличения времени сбоя. Увеличивается каждый раз после предыдущего сбоя.
+  after: -1        # Время в секундах (целое число), через которое будет происходить сбой. Установить -1 для отключения имитации.
+  multiplier: 1.2  # Коэффициент увеличения времени сбоя. Увеличивается каждый раз после предыдущего сбоя.

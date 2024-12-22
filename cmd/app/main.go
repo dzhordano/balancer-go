@@ -85,21 +85,41 @@ func main() {
 		)
 	}
 
-	// Инициализация балансировщика.
-	srv := server.NewHTTPServer(
-		net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port),
-		handler.NewBalancerHandler(log, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout).Routes(),
-	)
-
 	// Запуск балансировщика отдельной горутиной.
 	mainWG.Add(1)
 	go func() {
 		defer mainWG.Done()
 		log.Info("starting balancer http server", slog.String("server url", net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port)))
 
+		// Инициализация балансировщика.
+		srv := server.NewHTTPServer(
+			net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port),
+			handler.NewBalancerHandler(log, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout).Routes(),
+		)
+
 		if err := srv.Run(); err != nil {
 			log.Error("error runnning balancer http server",
 				slog.String("server url", net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port)),
+				slog.String("error", err.Error()))
+		}
+	}()
+
+	mainWG.Add(1)
+	go func() {
+		defer mainWG.Done()
+
+		log.Info("starting https server", slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)))
+
+		newSrv := server.NewHTTPServerWithTLS(
+			net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
+			cfg.HTTPSServer.CertFile,
+			cfg.HTTPSServer.KeyFile,
+			handler.NewBalancerHandler(log, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout).Routes(),
+		)
+
+		if err := newSrv.Run(); err != nil {
+			log.Error("error runnning https server",
+				slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)),
 				slog.String("error", err.Error()))
 		}
 	}()
