@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,7 +24,6 @@ type Server struct {
 	URL               string
 	ActiveConnections int64
 	Weight            int
-	Alive             bool
 }
 
 func (s *Server) IncrementConnections() {
@@ -50,7 +50,7 @@ type balancerHandler struct {
 	balancer Balancer
 }
 
-func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval, timeout time.Duration) *balancerHandler {
+func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval, timeout time.Duration, onceDoes *sync.Once) *balancerHandler {
 	var balancer Balancer
 	switch alg {
 	case roundRobinAlg:
@@ -70,7 +70,10 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 
 	balancer.SetServers(servers)
 
-	go balancer.HealthCheck(interval, timeout)
+	onceDoes.Do(func() {
+		hc := NewHealthChecker(interval, timeout, balancer)
+		go hc.HealthCheck(interval, timeout)
+	})
 
 	return &balancerHandler{
 		log:      log,

@@ -32,6 +32,14 @@ func NewHTTPServerWithTLS(addr, certFile, keyFile string, handler http.Handler) 
 		},
 	}
 
+	if certFile != "" && keyFile != "" {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			panic(err)
+		}
+		cfg.Certificates = []tls.Certificate{cert}
+	}
+
 	return &HTTPServer{
 		httpServer: &http.Server{
 			Addr:      addr,

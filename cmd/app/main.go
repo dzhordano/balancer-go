@@ -55,7 +55,7 @@ func main() {
 		} else {
 			log.Fatalf("error checking file: %s", err)
 		}
-
+	} else {
 		if cfg.Logging.Rewrite {
 			if err := os.Remove(cfg.Logging.Path + cfg.Logging.File); err != nil {
 				log.Fatalf("error removing file: %s", err)
@@ -129,10 +129,16 @@ func main() {
 		)
 	}
 
+	// sync.Once для инициализации HealthChecker единожды.
+	onceDoer := sync.Once{}
+
+	// Инициализация обработчика балансировщика.
+	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout, &onceDoer).Routes()
+
 	// Инициализация балансировщика.
 	srv := server.NewHTTPServer(
 		net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port),
-		handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout).Routes(),
+		balancerHandler,
 	)
 
 	// Запуск балансировщика отдельной горутиной.
@@ -148,58 +154,25 @@ func main() {
 		}
 	}()
 
-	fmt.Println(cfg.Logging.Path + cfg.Logging.FileTLS)
+	// newTlsSrv := server.NewHTTPServerWithTLS(
+	// 	net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
+	// 	cfg.HTTPSServer.CertFile,
+	// 	cfg.HTTPSServer.KeyFile,
+	// 	balancerHandler,
+	// )
 
-	// Check if file exists, if not - create.
-	if _, err := os.Stat(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-		if os.IsNotExist(err) {
-			if _, err := os.Create(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-				log.Fatalf("error creating file: %s", err)
-			}
-		} else {
-			log.Fatalf("error checking file: %s", err)
-		}
+	// mainWG.Add(1)
+	// go func() {
+	// 	defer mainWG.Done()
 
-		if cfg.Logging.Rewrite {
-			if err := os.Remove(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-				log.Fatalf("error removing file: %s", err)
-			}
-			if _, err := os.Create(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-				log.Fatalf("error creating file: %s", err)
-			}
-		}
-	}
+	// 	logging.Info("starting https server", slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)))
 
-	ftls, err := os.OpenFile(cfg.Logging.Path+cfg.Logging.FileTLS, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatalf("error opening file: %s", err)
-	}
-	defer f.Close()
-
-	tlsLogging := logger.NewSlogLogger(
-		ftls,
-		cfg.Logging.Level,
-	)
-
-	newTlsSrv := server.NewHTTPServerWithTLS(
-		net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
-		cfg.HTTPSServer.CertFile,
-		cfg.HTTPSServer.KeyFile,
-		handler.NewBalancerHandler(tlsLogging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout).Routes(),
-	)
-
-	mainWG.Add(1)
-	go func() {
-		defer mainWG.Done()
-
-		logging.Info("starting https server", slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)))
-
-		if err := newTlsSrv.Run(); err != nil {
-			logging.Error("error runnning https server",
-				slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)),
-				slog.String("error", err.Error()))
-		}
-	}()
+	// 	if err := newTlsSrv.Run(); err != nil {
+	// 		logging.Error("error runnning https server",
+	// 			slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)),
+	// 			slog.String("error", err.Error()))
+	// 	}
+	// }()
 
 	// Запуск сервера метрик отдельной горутиной.
 	go func() {
@@ -219,7 +192,7 @@ func main() {
 		srv.Shutdown(context.Background())
 	}
 
-	newTlsSrv.Shutdown(context.Background())
+	//newTlsSrv.Shutdown(context.Background())
 	srv.Shutdown(context.Background())
 
 	mainWG.Wait()
