@@ -23,6 +23,7 @@ type Server struct {
 	URL               string
 	ActiveConnections int64
 	Weight            int
+	Alive             bool
 }
 
 func (s *Server) IncrementConnections() {
