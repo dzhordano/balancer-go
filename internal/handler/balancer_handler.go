@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,7 +49,7 @@ type balancerHandler struct {
 	balancer Balancer
 }
 
-func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval, timeout time.Duration, onceDoes *sync.Once) *balancerHandler {
+func NewBalancerHandler(log *slog.Logger, servers []Server, alg string) *balancerHandler {
 	var balancer Balancer
 	switch alg {
 	case roundRobinAlg:
@@ -70,15 +69,16 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 
 	balancer.SetServers(servers)
 
-	onceDoes.Do(func() {
-		hc := NewHealthChecker(interval, timeout, balancer)
-		go hc.HealthCheck(interval, timeout)
-	})
-
 	return &balancerHandler{
 		log:      log,
 		balancer: balancer,
 	}
+}
+
+func (h *balancerHandler) RunHealthChecker(interval, timeout time.Duration) {
+	hc := NewHealthChecker(interval, timeout, h.balancer)
+
+	go hc.HealthCheck(interval, timeout)
 }
 
 func (h *balancerHandler) Routes() http.Handler {

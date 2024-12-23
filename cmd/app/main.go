@@ -129,16 +129,13 @@ func main() {
 		)
 	}
 
-	// sync.Once для инициализации HealthChecker единожды.
-	onceDoer := sync.Once{}
-
 	// Инициализация обработчика балансировщика.
-	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout, &onceDoer).Routes()
+	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg)
 
 	// Инициализация балансировщика.
 	srv := server.NewHTTPServer(
 		net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port),
-		balancerHandler,
+		balancerHandler.Routes(),
 	)
 
 	// Запуск балансировщика отдельной горутиной.
@@ -154,25 +151,28 @@ func main() {
 		}
 	}()
 
-	// newTlsSrv := server.NewHTTPServerWithTLS(
-	// 	net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
-	// 	cfg.HTTPSServer.CertFile,
-	// 	cfg.HTTPSServer.KeyFile,
-	// 	balancerHandler,
-	// )
+	newTlsSrv := server.NewHTTPServerWithTLS(
+		net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
+		cfg.HTTPSServer.CertFile,
+		cfg.HTTPSServer.KeyFile,
+		balancerHandler.Routes(),
+	)
 
-	// mainWG.Add(1)
-	// go func() {
-	// 	defer mainWG.Done()
+	// Запуск проверки статуса серверов.
+	balancerHandler.RunHealthChecker(cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
 
-	// 	logging.Info("starting https server", slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)))
+	mainWG.Add(1)
+	go func() {
+		defer mainWG.Done()
 
-	// 	if err := newTlsSrv.Run(); err != nil {
-	// 		logging.Error("error runnning https server",
-	// 			slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)),
-	// 			slog.String("error", err.Error()))
-	// 	}
-	// }()
+		logging.Info("starting https server", slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)))
+
+		if err := newTlsSrv.Run(); err != nil {
+			logging.Error("error runnning https server",
+				slog.String("server url", net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port)),
+				slog.String("error", err.Error()))
+		}
+	}()
 
 	// Запуск сервера метрик отдельной горутиной.
 	go func() {
@@ -192,7 +192,7 @@ func main() {
 		srv.Shutdown(context.Background())
 	}
 
-	//newTlsSrv.Shutdown(context.Background())
+	newTlsSrv.Shutdown(context.Background())
 	srv.Shutdown(context.Background())
 
 	mainWG.Wait()
