@@ -55,14 +55,14 @@ func main() {
 		} else {
 			log.Fatalf("error checking file: %s", err)
 		}
-	}
 
-	if cfg.Logging.Rewrite {
-		if err := os.Remove(cfg.Logging.Path + cfg.Logging.File); err != nil {
-			log.Fatalf("error removing file: %s", err)
-		}
-		if _, err := os.Create(cfg.Logging.Path + cfg.Logging.File); err != nil {
-			log.Fatalf("error creating file: %s", err)
+		if cfg.Logging.Rewrite {
+			if err := os.Remove(cfg.Logging.Path + cfg.Logging.File); err != nil {
+				log.Fatalf("error removing file: %s", err)
+			}
+			if _, err := os.Create(cfg.Logging.Path + cfg.Logging.File); err != nil {
+				log.Fatalf("error creating file: %s", err)
+			}
 		}
 	}
 
@@ -159,14 +159,14 @@ func main() {
 		} else {
 			log.Fatalf("error checking file: %s", err)
 		}
-	}
 
-	if cfg.Logging.Rewrite {
-		if err := os.Remove(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-			log.Fatalf("error removing file: %s", err)
-		}
-		if _, err := os.Create(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
-			log.Fatalf("error creating file: %s", err)
+		if cfg.Logging.Rewrite {
+			if err := os.Remove(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
+				log.Fatalf("error removing file: %s", err)
+			}
+			if _, err := os.Create(cfg.Logging.Path + cfg.Logging.FileTLS); err != nil {
+				log.Fatalf("error creating file: %s", err)
+			}
 		}
 	}
 
