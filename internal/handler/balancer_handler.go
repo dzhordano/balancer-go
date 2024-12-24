@@ -45,11 +45,12 @@ func NewServer(url string, weight int) *Server {
 }
 
 type balancerHandler struct {
-	log      *slog.Logger
-	balancer Balancer
+	log           *slog.Logger
+	balancer      Balancer
+	healthChecker HealthChecker
 }
 
-func NewBalancerHandler(log *slog.Logger, servers []Server, alg string) *balancerHandler {
+func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval, timeout time.Duration) *balancerHandler {
 	var balancer Balancer
 	switch alg {
 	case roundRobinAlg:
@@ -69,16 +70,17 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string) *balance
 
 	balancer.SetServers(servers)
 
+	hc := NewHealthChecker(interval, timeout, balancer)
+
 	return &balancerHandler{
-		log:      log,
-		balancer: balancer,
+		log:           log,
+		balancer:      balancer,
+		healthChecker: hc,
 	}
 }
 
-func (h *balancerHandler) RunHealthChecker(interval, timeout time.Duration) {
-	hc := NewHealthChecker(interval, timeout, h.balancer)
-
-	go hc.HealthCheck(interval, timeout)
+func (h *balancerHandler) RunHealthChecker() {
+	go h.RunHealthChecker()
 }
 
 func (h *balancerHandler) Routes() http.Handler {

@@ -130,7 +130,7 @@ func main() {
 	}
 
 	// Инициализация обработчика балансировщика.
-	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg)
+	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
 
 	// Инициализация балансировщика.
 	srv := server.NewHTTPServer(
@@ -159,7 +159,7 @@ func main() {
 	)
 
 	// Запуск проверки статуса серверов.
-	balancerHandler.RunHealthChecker(cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
+	balancerHandler.RunHealthChecker()
 
 	mainWG.Add(1)
 	go func() {

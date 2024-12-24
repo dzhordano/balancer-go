@@ -4,30 +4,30 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 )
 
 type HealthChecker interface {
-	HealthCheck(interval time.Duration, timeout time.Duration)
+	HealthCheck()
 }
 
 type hc struct {
 	interval time.Duration
 	timeout  time.Duration
 	balancer Balancer
-	mu       sync.Mutex
 }
 
 func NewHealthChecker(interval time.Duration, timeout time.Duration, balancer Balancer) HealthChecker {
-	return &hc{interval: interval, timeout: timeout, balancer: balancer}
+	return &hc{
+		interval: interval,
+		timeout:  timeout,
+		balancer: balancer}
 }
 
-func (hl *hc) HealthCheck(interval time.Duration, timeout time.Duration) {
-	time.Sleep(interval)
+func (hl *hc) HealthCheck() {
+	time.Sleep(hl.interval)
 
-	var downServers []Server
-	servers := hl.balancer.Servers()
+	downServers := hl.balancer.DownServers()
 	aliveServers := hl.balancer.AliveServers()
 
 	for {
@@ -37,39 +37,31 @@ func (hl *hc) HealthCheck(interval time.Duration, timeout time.Duration) {
 
 		for i := range aliveServers {
 			start := time.Now()
-			resp, err := http.Get(fmt.Sprintf("http://%s/health", servers[i].URL))
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", aliveServers[i].URL))
 			if err != nil {
-				slog.Info("failed to get health check", slog.String("server", servers[i].URL), slog.String("error", err.Error()))
+				slog.Info("failed to get health check", slog.String("server", aliveServers[i].URL), slog.String("error", err.Error()))
 
-				hl.mu.Lock()
-				downServers = append(downServers, aliveServers[i])
-				hl.mu.Unlock()
+				hl.balancer.AddDownServer(aliveServers[i])
+				hl.balancer.RemoveAliveServer(i)
 
-				hl.balancer.RemoveServer(i)
 				break
 			}
 			resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				slog.Info("server is not alive", slog.String("server", servers[i].URL), slog.Int("status_code", resp.StatusCode))
+				slog.Info("server is not alive", slog.String("server", aliveServers[i].URL), slog.Int("status_code", resp.StatusCode))
 
-				hl.mu.Lock()
-				downServers = append(downServers, aliveServers[i])
-				hl.mu.Unlock()
-
-				hl.balancer.RemoveServer(i)
+				hl.balancer.AddDownServer(aliveServers[i])
+				hl.balancer.RemoveAliveServer(i)
 				break
 			}
 
 			elapsed := time.Since(start)
-			if elapsed > timeout {
-				slog.Info("server is not alive", slog.String("server", servers[i].URL), slog.Duration("elapsed", elapsed))
+			if elapsed > hl.timeout {
+				slog.Info("server is not alive", slog.String("server", aliveServers[i].URL), slog.Duration("elapsed", elapsed))
 
-				hl.mu.Lock()
-				downServers = append(downServers, aliveServers[i])
-				hl.mu.Unlock()
-
-				hl.balancer.RemoveServer(i)
+				hl.balancer.AddDownServer(aliveServers[i])
+				hl.balancer.RemoveAliveServer(i)
 				break
 			}
 		}
@@ -88,18 +80,14 @@ func (hl *hc) HealthCheck(interval time.Duration, timeout time.Duration) {
 				}
 
 				elapsed := time.Since(start)
-				if elapsed > timeout {
+				if elapsed > hl.timeout {
 					break
 				}
 
 				hl.balancer.AddAliveServer(downServers[i])
-
-				hl.mu.Lock()
-				downServers = append(downServers[:i], downServers[i+1:]...)
-				hl.mu.Unlock()
 			}
 		}
 
-		time.Sleep(interval)
+		time.Sleep(hl.interval)
 	}
 }

@@ -1,33 +1,29 @@
 package handler
 
 import (
-	"fmt"
 	"hash/crc32"
-	"log/slog"
 	"math/rand"
-	"net/http"
 	"sync"
-	"time"
 )
 
 type Balancer interface {
 	SetServers(servers []Server)
 	AddAliveServer(server Server)
+	AddDownServer(server Server)
 	SelectServer(args ...interface{}) *Server
-	Servers() []Server
+	DownServers() []Server
 	AliveServers() []Server
-	RemoveServer(index int)
+	RemoveAliveServer(index int)
 }
 
 type RoundRobinBalancer struct {
-	servers      []Server
+	downServers  []Server
 	aliveServers []Server
 	index        int
 	mu           sync.Mutex
 }
 
 func (rr *RoundRobinBalancer) SetServers(servers []Server) {
-	rr.servers = servers
 	rr.aliveServers = servers
 	rr.index = 0
 }
@@ -46,13 +42,13 @@ func (rr *RoundRobinBalancer) SelectServer(args ...interface{}) *Server {
 	return server
 }
 
-func (rr *RoundRobinBalancer) Servers() []Server {
+func (rr *RoundRobinBalancer) DownServers() []Server {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
-	return rr.servers
+	return rr.downServers
 }
 
-func (rr *RoundRobinBalancer) RemoveServer(index int) {
+func (rr *RoundRobinBalancer) RemoveAliveServer(index int) {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
 	rr.aliveServers = append(rr.aliveServers[:index], rr.aliveServers[index+1:]...)
@@ -69,6 +65,12 @@ func (rr *RoundRobinBalancer) AddAliveServer(server Server) {
 	rr.aliveServers = append(rr.aliveServers, server)
 }
 
+func (rr *RoundRobinBalancer) AddDownServer(server Server) {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	rr.downServers = append(rr.downServers, server)
+}
+
 func (rr *RoundRobinBalancer) AliveServers() []Server {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
@@ -76,7 +78,7 @@ func (rr *RoundRobinBalancer) AliveServers() []Server {
 }
 
 type WeightedRoundRobinBalancer struct {
-	servers      []Server
+	downServers  []Server
 	aliveServers []Server
 	index        int
 	current      int // Nth request number
@@ -84,7 +86,6 @@ type WeightedRoundRobinBalancer struct {
 }
 
 func (wrr *WeightedRoundRobinBalancer) SetServers(servers []Server) {
-	wrr.servers = servers
 	wrr.aliveServers = servers
 
 	wrr.index = 0
@@ -110,21 +111,21 @@ func (wrr *WeightedRoundRobinBalancer) SelectServer(args ...interface{}) *Server
 	return server
 }
 
-func (wrr *WeightedRoundRobinBalancer) Servers() []Server {
+func (wrr *WeightedRoundRobinBalancer) DownServers() []Server {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
-	return wrr.servers
+	return wrr.downServers
 }
 
-func (wrr *WeightedRoundRobinBalancer) RemoveServer(index int) {
+func (wrr *WeightedRoundRobinBalancer) RemoveAliveServer(index int) {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
-	wrr.servers = append(wrr.servers[:index], wrr.servers[index+1:]...)
-	if len(wrr.servers) == 0 {
+	wrr.aliveServers = append(wrr.aliveServers[:index], wrr.aliveServers[index+1:]...)
+	if len(wrr.aliveServers) == 0 {
 		wrr.index = 0
 		return
 	}
-	wrr.index = (wrr.index) % len(wrr.servers)
+	wrr.index = (wrr.index) % len(wrr.aliveServers)
 }
 
 func (wrr *WeightedRoundRobinBalancer) AddAliveServer(server Server) {
@@ -133,100 +134,26 @@ func (wrr *WeightedRoundRobinBalancer) AddAliveServer(server Server) {
 	wrr.aliveServers = append(wrr.aliveServers, server)
 }
 
+func (wrr *WeightedRoundRobinBalancer) AddDownServer(server Server) {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
+	wrr.downServers = append(wrr.downServers, server)
+}
+
 func (wrr *WeightedRoundRobinBalancer) AliveServers() []Server {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
 	return wrr.aliveServers
 }
 
-func (rr *RoundRobinBalancer) HealthCheck(interval time.Duration, timeout time.Duration) {
-	time.Sleep(interval)
-
-	var downServers []Server
-
-	for {
-		if len(rr.AliveServers()) == 0 {
-			return
-		}
-
-		for i := range rr.aliveServers {
-			start := time.Now()
-			resp, err := http.Get(fmt.Sprintf("http://%s/health", rr.servers[i].URL))
-			if err != nil {
-				slog.Info("failed to get health check", slog.String("server", rr.servers[i].URL), slog.String("error", err.Error()))
-
-				rr.mu.Lock()
-				downServers = append(downServers, rr.aliveServers[i])
-				rr.mu.Unlock()
-
-				rr.RemoveServer(i)
-				break
-			}
-			resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				slog.Info("server is not alive", slog.String("server", rr.servers[i].URL), slog.Int("status_code", resp.StatusCode))
-
-				rr.mu.Lock()
-				downServers = append(downServers, rr.aliveServers[i])
-				rr.mu.Unlock()
-
-				rr.RemoveServer(i)
-				break
-			}
-
-			elapsed := time.Since(start)
-			if elapsed > timeout {
-				slog.Info("server is not alive", slog.String("server", rr.servers[i].URL), slog.Duration("elapsed", elapsed))
-
-				rr.mu.Lock()
-				downServers = append(downServers, rr.aliveServers[i])
-				rr.mu.Unlock()
-
-				rr.RemoveServer(i)
-				break
-			}
-		}
-
-		if len(downServers) > 0 {
-			for i := range downServers {
-				start := time.Now()
-				resp, err := http.Get(fmt.Sprintf("http://%s/health", downServers[i].URL))
-				if err != nil {
-					break
-				}
-				resp.Body.Close()
-
-				if resp.StatusCode != http.StatusOK {
-					break
-				}
-
-				elapsed := time.Since(start)
-				if elapsed > timeout {
-					break
-				}
-
-				rr.AddAliveServer(downServers[i])
-
-				rr.mu.Lock()
-				downServers = append(downServers[:i], downServers[i+1:]...)
-				rr.mu.Unlock()
-			}
-		}
-
-		time.Sleep(interval)
-	}
-}
-
 type LeastConnectionsBalancer struct {
 	mu           sync.Mutex
-	servers      []Server
+	downServers  []Server
 	aliveServers []Server
 	connCount    map[string]int // Хранит количество соединений для каждого сервера
 }
 
 func (lc *LeastConnectionsBalancer) SetServers(servers []Server) {
-	lc.servers = servers
 	lc.aliveServers = servers
 	lc.connCount = make(map[string]int, len(servers))
 }
@@ -254,22 +181,28 @@ func (lc *LeastConnectionsBalancer) SelectServer(args ...interface{}) *Server {
 	return server
 }
 
-func (lc *LeastConnectionsBalancer) Servers() []Server {
+func (lc *LeastConnectionsBalancer) DownServers() []Server {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	return lc.servers
+	return lc.downServers
 }
 
-func (lc *LeastConnectionsBalancer) RemoveServer(index int) {
+func (lc *LeastConnectionsBalancer) RemoveAliveServer(index int) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	lc.servers = append(lc.servers[:index], lc.servers[index+1:]...)
+	lc.aliveServers = append(lc.aliveServers[:index], lc.aliveServers[index+1:]...)
 }
 
 func (lc *LeastConnectionsBalancer) AddAliveServer(server Server) {
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 	lc.aliveServers = append(lc.aliveServers, server)
+}
+
+func (lc *LeastConnectionsBalancer) AddDownServer(server Server) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	lc.downServers = append(lc.downServers, server)
 }
 
 func (lc *LeastConnectionsBalancer) AliveServers() []Server {
@@ -279,7 +212,7 @@ func (lc *LeastConnectionsBalancer) AliveServers() []Server {
 }
 
 type HashBalancer struct {
-	servers      []Server
+	downServers  []Server
 	aliveServers []Server
 	mu           sync.Mutex
 }
@@ -287,7 +220,6 @@ type HashBalancer struct {
 func (hb *HashBalancer) SetServers(servers []Server) {
 	hb.mu.Lock()
 	defer hb.mu.Unlock()
-	hb.servers = servers
 	hb.aliveServers = servers
 }
 
@@ -314,22 +246,28 @@ func (hb *HashBalancer) SelectServer(args ...interface{}) *Server {
 	return &hb.aliveServers[index]
 }
 
-func (hb *HashBalancer) Servers() []Server {
+func (hb *HashBalancer) DownServers() []Server {
 	hb.mu.Lock()
 	defer hb.mu.Unlock()
-	return hb.servers
+	return hb.downServers
 }
 
-func (hb *HashBalancer) RemoveServer(index int) {
+func (hb *HashBalancer) RemoveAliveServer(index int) {
 	hb.mu.Lock()
 	defer hb.mu.Unlock()
-	hb.servers = append(hb.servers[:index], hb.servers[index+1:]...)
+	hb.aliveServers = append(hb.aliveServers[:index], hb.aliveServers[index+1:]...)
 }
 
 func (hb *HashBalancer) AddAliveServer(server Server) {
 	hb.mu.Lock()
 	defer hb.mu.Unlock()
 	hb.aliveServers = append(hb.aliveServers, server)
+}
+
+func (hb *HashBalancer) AddDownServer(server Server) {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
+	hb.downServers = append(hb.downServers, server)
 }
 
 func (hb *HashBalancer) AliveServers() []Server {
@@ -340,7 +278,7 @@ func (hb *HashBalancer) AliveServers() []Server {
 
 // TODO impl random
 type RandomBalancer struct {
-	servers      []Server
+	downServers  []Server
 	aliveServers []Server
 	mu           sync.Mutex
 }
@@ -348,7 +286,6 @@ type RandomBalancer struct {
 func (rb *RandomBalancer) SetServers(servers []Server) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
-	rb.servers = servers
 	rb.aliveServers = servers
 }
 
@@ -363,10 +300,10 @@ func (rb *RandomBalancer) SelectServer(args ...interface{}) *Server {
 	return &rb.aliveServers[rand.Intn(len(rb.aliveServers))]
 }
 
-func (rb *RandomBalancer) Servers() []Server {
+func (rb *RandomBalancer) DownServers() []Server {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
-	return rb.servers
+	return rb.downServers
 }
 
 func (rb *RandomBalancer) AliveServers() []Server {
@@ -375,14 +312,20 @@ func (rb *RandomBalancer) AliveServers() []Server {
 	return rb.aliveServers
 }
 
-func (rb *RandomBalancer) RemoveServer(index int) {
+func (rb *RandomBalancer) RemoveAliveServer(index int) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
-	rb.servers = append(rb.servers[:index], rb.servers[index+1:]...)
+	rb.aliveServers = append(rb.aliveServers[:index], rb.aliveServers[index+1:]...)
 }
 
 func (rb *RandomBalancer) AddAliveServer(server Server) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 	rb.aliveServers = append(rb.aliveServers, server)
+}
+
+func (rb *RandomBalancer) AddDownServer(server Server) {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.downServers = append(rb.downServers, server)
 }
