@@ -44,11 +44,10 @@ type Health struct {
 }
 
 type Logging struct {
-	Rewrite bool   `yaml:"rewrite"`  // rewrite log file after startup or not
-	Level   string `yaml:"level"`    // logging level
-	Path    string `yaml:"path"`     // path to log file
-	File    string `yaml:"file"`     // file to log to
-	FileTLS string `yaml:"file_tls"` // file to log tls to
+	Rewrite bool   `yaml:"rewrite"` // rewrite log file after startup or not
+	Level   string `yaml:"level"`   // logging level
+	Path    string `yaml:"path"`    // path to log file
+	File    string `yaml:"file"`    // file to log to
 }
 
 type ServerOutage struct {

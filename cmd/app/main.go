@@ -88,6 +88,7 @@ func main() {
 
 	// Список всех серверов для последующего закрытия.
 	var serversList []*server.HTTPServer
+	var startupMUX sync.Mutex
 
 	// Запуск серверов в отдельных горутинах, которые останавливаются через определенное время.
 	// Останока серверов также выполняется в отдельных горутинах для избежания блокировки горутины сервера.
@@ -102,6 +103,7 @@ func main() {
 
 			serversList = append(serversList, newSrv)
 
+			startupMUX.Lock()
 			go func() {
 				if cfg.ServersOutage.After != -1 {
 					outAfter := outageAfter.Load().(float64)
@@ -111,6 +113,7 @@ func main() {
 					newSrv.Shutdown(context.Background())
 				}
 			}()
+			startupMUX.Unlock()
 
 			if err := newSrv.Run(); err != nil {
 				logging.Error("error runnning http server",
@@ -159,7 +162,10 @@ func main() {
 	)
 
 	// Запуск проверки статуса серверов.
-	balancerHandler.RunHealthChecker()
+	go func() {
+		fmt.Println("starting health check")
+		balancerHandler.RunHealthChecker()
+	}()
 
 	mainWG.Add(1)
 	go func() {

@@ -70,7 +70,7 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 
 	balancer.SetServers(servers)
 
-	hc := NewHealthChecker(interval, timeout, balancer)
+	hc := NewHealthChecker(log, interval, timeout, balancer)
 
 	return &balancerHandler{
 		log:           log,
@@ -80,7 +80,7 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 }
 
 func (h *balancerHandler) RunHealthChecker() {
-	go h.RunHealthChecker()
+	h.healthChecker.HealthCheck()
 }
 
 func (h *balancerHandler) Routes() http.Handler {
@@ -99,20 +99,22 @@ func (b *balancerHandler) forwardRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "no available servers", http.StatusServiceUnavailable)
 		return
 	}
-
-	server.IncrementConnections()
 	defer server.DecrementConnections()
 
 	targetURL := fmt.Sprintf("http://%s%s", server.URL, r.URL.Path)
-	//fmt.Println("forwarding request to", targetURL)
+	b.log.Debug("forwarding request to", slog.String("url", targetURL))
 	req, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
+		b.log.Error("failed to create request", slog.String("url", targetURL), slog.String("error", err.Error()))
+
 		http.Error(w, "failed to create request", http.StatusInternalServerError)
 		return
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		b.log.Error("failed to forward request", slog.String("url", targetURL), slog.String("error", err.Error()))
+
 		http.Error(w, "failed to forward request", http.StatusBadGateway)
 		return
 	}

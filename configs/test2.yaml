@@ -8,15 +8,16 @@ https_server:
   cert_file: "server.crt"
   key_file: "server.key"
 
+
 servers:
   - url: "localhost:8081"
     weight: 1
   - url: "localhost:8082"
-    weight: 1
+    weight: 2
   - url: "localhost:8083"
-    weight: 1
+    weight: 2
 
-balancing_alg: "round_robin"
+balancing_alg: "random"
 
 health_check:
   interval: 5s
@@ -24,11 +25,10 @@ health_check:
 
 logging:
   rewrite: true 
-  level: "info" 
+  level: "debug" 
   path: "logs/" 
   file: "server.log" 
-  file_tls: "server_tls.log"
 
 servers_outage:    
-  after: 10
-  multiplier: 1.5
+  after: -1
+  multiplier: 1.7

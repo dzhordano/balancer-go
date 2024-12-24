@@ -15,7 +15,7 @@ servers:
   - url: "localhost:8082"
     weight: 2
   - url: "localhost:8083"
-    weight: 3
+    weight: 2
 
 balancing_alg: "weighted_round_robin"
 
@@ -30,5 +30,5 @@ logging:
   file: "server.log" 
 
 servers_outage:    
-  after: 1        
-  multiplier: 1.2  
+  after: 10   
+  multiplier: 1.75

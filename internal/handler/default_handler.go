@@ -31,7 +31,12 @@ func DefaultRoutes() http.Handler {
 	r.Get("/resource1", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
 
 		// Псевдо-задержка.
-		time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
+		n := rand.Intn(1001)
+		if n == 1000 {
+			time.Sleep(350 * time.Millisecond)
+		} else {
+			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+		}
 
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")

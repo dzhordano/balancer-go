@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"time"
 )
 
 type HTTPServer struct {
@@ -13,8 +14,11 @@ type HTTPServer struct {
 func NewHTTPServer(addr string, handler http.Handler) *HTTPServer {
 	return &HTTPServer{
 		httpServer: &http.Server{
-			Addr:    addr,
-			Handler: handler,
+			Addr:         addr,
+			Handler:      handler,
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  10 * time.Second,
 		},
 	}
 }

@@ -150,12 +150,10 @@ type LeastConnectionsBalancer struct {
 	mu           sync.Mutex
 	downServers  []Server
 	aliveServers []Server
-	connCount    map[string]int // Хранит количество соединений для каждого сервера
 }
 
 func (lc *LeastConnectionsBalancer) SetServers(servers []Server) {
 	lc.aliveServers = servers
-	lc.connCount = make(map[string]int, len(servers))
 }
 
 func (lc *LeastConnectionsBalancer) SelectServer(args ...interface{}) *Server {
@@ -170,13 +168,15 @@ func (lc *LeastConnectionsBalancer) SelectServer(args ...interface{}) *Server {
 	var server *Server
 
 	for _, srv := range lc.aliveServers {
-		if lc.connCount[srv.URL] < minConns {
-			minConns = lc.connCount[srv.URL]
+		currConns := int(srv.CurrentConnections())
+
+		if currConns < minConns {
+			minConns = currConns
 			server = &srv
 		}
 	}
 
-	// fmt.Println("CURRENT CONNS:", lc.connCount)
+	server.IncrementConnections()
 
 	return server
 }

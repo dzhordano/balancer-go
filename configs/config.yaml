@@ -15,23 +15,9 @@ servers:
   - url: "localhost:8082"
     weight: 2
   - url: "localhost:8083"
-    weight: 3
-  # - url: "localhost:8084"
-  #   weight: 4
-  # - url: "localhost:8085"
-  #   weight: 5
-  # - url: "localhost:8086"
-  #   weight: 1
-  # - url: "localhost:8087"
-  #   weight: 1
-  # - url: "localhost:8088"
-  #   weight: 1
-  # - url: "localhost:8089"
-  #   weight: 1
-  # - url: "localhost:8090"
-  #   weight: 1
+    weight: 2
 
-balancing_alg: "round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
+balancing_alg: "weighted_round_robin" # choose balancing algorithm (algs: round_robin, weighted_round_robin, least_connections, hash, random)
 
 health_check:
   interval: 5s
@@ -42,8 +28,8 @@ logging:
   level: "info" # Уровень логирования.
   path: "logs/" # Путь к файлу логирования.
   file: "server.log" # Имя файла логирования.
-  file_tls: "server_tls.log" # Имя файла логирования для защищенных соединений.
 
 servers_outage:    # Используется для имитации сбоя работы серверов.
-  after: 2       # Время в секундах (целое число), через которое будет происходить сбой. Установить -1 для отключения имитации.
-  multiplier: 1.5  # Коэффициент увеличения времени сбоя. Увеличивается каждый раз после предыдущего сбоя.
+  after: 10        # Время в секундах (целое число), через которое будет происходить сбой. Установить -1 для отключения имитации.
+  multiplier: 1.7  # Коэффициент увеличения времени сбоя. Увеличивается каждый раз после предыдущего сбоя.
+
