@@ -17,6 +17,7 @@ import (
 
 	"github.com/dzhordano/balancer-go/internal/balancer"
 	"github.com/dzhordano/balancer-go/internal/config"
+	"github.com/dzhordano/balancer-go/internal/healthcheck"
 	"github.com/dzhordano/balancer-go/internal/httpserver"
 	"github.com/dzhordano/balancer-go/internal/routes"
 	"github.com/dzhordano/balancer-go/internal/server"
@@ -135,7 +136,13 @@ func main() {
 	}
 
 	// Инициализация обработчика балансировщика.
-	balancerHandler := balancer.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
+	balancerHandler := balancer.NewBalancerHandler(logging, servers, cfg.BalancingAlg)
+
+	// Запуск проверки статуса серверов.
+	go func() {
+		fmt.Println("starting health check")
+		healthcheck.NewHealthChecker(logging, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout, balancerHandler.Balancer()).HealthCheck()
+	}()
 
 	// Инициализация балансировщика.
 	srv := httpserver.NewHTTPServer(
@@ -162,12 +169,6 @@ func main() {
 		cfg.HTTPSServer.KeyFile,
 		balancerHandler.Routes(),
 	)
-
-	// Запуск проверки статуса серверов.
-	go func() {
-		fmt.Println("starting health check")
-		balancerHandler.RunHealthChecker()
-	}()
 
 	mainWG.Add(1)
 	go func() {

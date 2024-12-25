@@ -5,9 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"github.com/dzhordano/balancer-go/internal/healthcheck"
 	"github.com/dzhordano/balancer-go/internal/server"
 	"github.com/dzhordano/balancer-go/pkg/metrics"
 	"github.com/go-chi/chi/v5"
@@ -31,14 +29,12 @@ type Balancer interface {
 	RemoveDownServer(index int)
 	RemoveAliveServer(index int)
 }
-
 type balancerHandler struct {
-	log           *slog.Logger
-	balancer      Balancer
-	healthChecker healthcheck.HealthChecker
+	log      *slog.Logger
+	balancer Balancer
 }
 
-func NewBalancerHandler(log *slog.Logger, servers []server.Server, alg string, interval, timeout time.Duration) *balancerHandler {
+func NewBalancerHandler(log *slog.Logger, servers []server.Server, alg string) *balancerHandler {
 	var balancer Balancer
 	switch alg {
 	case roundRobinAlg:
@@ -58,17 +54,10 @@ func NewBalancerHandler(log *slog.Logger, servers []server.Server, alg string, i
 
 	balancer.SetServers(servers)
 
-	hc := healthcheck.NewHealthChecker(log, interval, timeout, balancer)
-
 	return &balancerHandler{
-		log:           log,
-		balancer:      balancer,
-		healthChecker: hc,
+		log:      log,
+		balancer: balancer,
 	}
-}
-
-func (h *balancerHandler) RunHealthChecker() {
-	h.healthChecker.HealthCheck()
 }
 
 func (h *balancerHandler) Routes() http.Handler {
@@ -78,6 +67,9 @@ func (h *balancerHandler) Routes() http.Handler {
 	r.Get("/resource2", metrics.InstrumentHandler("/resource2", h.forwardRequest))
 
 	return r
+}
+func (h *balancerHandler) Balancer() Balancer {
+	return h.balancer
 }
 
 func (b *balancerHandler) forwardRequest(w http.ResponseWriter, r *http.Request) {
