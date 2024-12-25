@@ -1,10 +1,12 @@
-package handler
+package healthcheck
 
 import (
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/dzhordano/balancer-go/internal/balancer"
 )
 
 type HealthChecker interface {
@@ -15,10 +17,10 @@ type hc struct {
 	log      *slog.Logger
 	interval time.Duration
 	timeout  time.Duration
-	balancer Balancer
+	balancer balancer.Balancer
 }
 
-func NewHealthChecker(logger *slog.Logger, interval time.Duration, timeout time.Duration, balancer Balancer) HealthChecker {
+func NewHealthChecker(logger *slog.Logger, interval time.Duration, timeout time.Duration, balancer balancer.Balancer) HealthChecker {
 	return &hc{
 		log:      logger,
 		interval: interval,
@@ -101,5 +103,4 @@ func (hl *hc) HealthCheck() {
 
 		time.Sleep(hl.interval)
 	}
-
 }

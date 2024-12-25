@@ -1,4 +1,4 @@
-package handler
+package metrics
 
 import (
 	"net/http"
@@ -28,14 +28,14 @@ func init() {
 	prometheus.MustRegister(concreteURLRequests)
 }
 
-func instrumentHandler(endpoint string, next http.HandlerFunc) http.HandlerFunc {
+func InstrumentHandler(endpoint string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		requestsTotal.WithLabelValues(r.Method, endpoint).Inc()
 		next(w, r)
 	}
 }
 
-func instrumentConcretePathRequests(next http.Handler) http.Handler {
+func InstrumentConcretePathRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		concreteURLRequests.WithLabelValues(r.Host + r.URL.Path).Inc()
 		next.ServeHTTP(w, r)

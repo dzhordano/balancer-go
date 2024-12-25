@@ -1,27 +1,17 @@
-package handler
+package routes
 
 import (
-	"log/slog"
 	"math/rand"
 	"net/http"
 	"time"
 
+	"github.com/dzhordano/balancer-go/pkg/metrics"
 	"github.com/go-chi/chi/v5"
 )
 
-type defaultHandler struct {
-	log *slog.Logger
-}
-
-func NewDefaultHandler(log *slog.Logger) defaultHandler {
-	return defaultHandler{
-		log: log,
-	}
-}
-
 func DefaultRoutes() http.Handler {
 	r := chi.NewRouter()
-	r.Use(instrumentConcretePathRequests)
+	r.Use(metrics.InstrumentConcretePathRequests)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -1,13 +1,15 @@
-package handler
+package balancer
 
 import (
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"sync/atomic"
 	"time"
 
+	"github.com/dzhordano/balancer-go/internal/healthcheck"
+	"github.com/dzhordano/balancer-go/internal/server"
+	"github.com/dzhordano/balancer-go/pkg/metrics"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -19,38 +21,24 @@ const (
 	randomAlg             = "random"
 )
 
-type Server struct {
-	URL               string
-	ActiveConnections int64
-	Weight            int
-}
-
-func (s *Server) IncrementConnections() {
-	atomic.AddInt64(&s.ActiveConnections, 1)
-}
-
-func (s *Server) DecrementConnections() {
-	atomic.AddInt64(&s.ActiveConnections, -1)
-}
-
-func (s *Server) CurrentConnections() int64 {
-	return atomic.LoadInt64(&s.ActiveConnections)
-}
-
-func NewServer(url string, weight int) *Server {
-	return &Server{
-		URL:    url,
-		Weight: weight,
-	}
+type Balancer interface {
+	SetServers(servers []server.Server)
+	SelectServer(args ...interface{}) *server.Server
+	DownServers() []server.Server
+	AliveServers() []server.Server
+	AddAliveServer(server server.Server)
+	AddDownServer(server server.Server)
+	RemoveDownServer(index int)
+	RemoveAliveServer(index int)
 }
 
 type balancerHandler struct {
 	log           *slog.Logger
 	balancer      Balancer
-	healthChecker HealthChecker
+	healthChecker healthcheck.HealthChecker
 }
 
-func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval, timeout time.Duration) *balancerHandler {
+func NewBalancerHandler(log *slog.Logger, servers []server.Server, alg string, interval, timeout time.Duration) *balancerHandler {
 	var balancer Balancer
 	switch alg {
 	case roundRobinAlg:
@@ -70,7 +58,7 @@ func NewBalancerHandler(log *slog.Logger, servers []Server, alg string, interval
 
 	balancer.SetServers(servers)
 
-	hc := NewHealthChecker(log, interval, timeout, balancer)
+	hc := healthcheck.NewHealthChecker(log, interval, timeout, balancer)
 
 	return &balancerHandler{
 		log:           log,
@@ -86,8 +74,8 @@ func (h *balancerHandler) RunHealthChecker() {
 func (h *balancerHandler) Routes() http.Handler {
 	r := chi.NewRouter()
 
-	r.Get("/resource1", instrumentHandler("/resource1", h.forwardRequest))
-	r.Get("/resource2", instrumentHandler("/resource2", h.forwardRequest))
+	r.Get("/resource1", metrics.InstrumentHandler("/resource1", h.forwardRequest))
+	r.Get("/resource2", metrics.InstrumentHandler("/resource2", h.forwardRequest))
 
 	return r
 }

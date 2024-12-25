@@ -15,8 +15,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dzhordano/balancer-go/internal/balancer"
 	"github.com/dzhordano/balancer-go/internal/config"
-	"github.com/dzhordano/balancer-go/internal/handler"
+	"github.com/dzhordano/balancer-go/internal/httpserver"
+	"github.com/dzhordano/balancer-go/internal/routes"
 	"github.com/dzhordano/balancer-go/internal/server"
 	"github.com/dzhordano/balancer-go/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -87,7 +89,7 @@ func main() {
 	outageAfter.Store(cfg.ServersOutage.After)
 
 	// Список всех серверов для последующего закрытия.
-	var serversList []*server.HTTPServer
+	var serversList []*httpserver.HTTPServer
 	var startupMU sync.Mutex
 
 	// Запуск серверов в отдельных горутинах, которые останавливаются через определенное время.
@@ -99,7 +101,7 @@ func main() {
 
 			logging.Info("starting http server", slog.Int("server number", i+1), slog.String("server url", cfg.Servers[i].URL))
 
-			newSrv := server.NewHTTPServer(cfg.Servers[i].URL, handler.DefaultRoutes())
+			newSrv := httpserver.NewHTTPServer(cfg.Servers[i].URL, routes.DefaultRoutes())
 
 			serversList = append(serversList, newSrv)
 
@@ -124,19 +126,19 @@ func main() {
 	}
 
 	// Заполнение массива доступных серверов для балансировщика.
-	servers := make([]handler.Server, len(cfg.Servers))
+	servers := make([]server.Server, len(cfg.Servers))
 	for i := range cfg.Servers {
-		servers[i] = *handler.NewServer(
+		servers[i] = *server.NewServer(
 			cfg.Servers[i].URL,
 			cfg.Servers[i].Weight,
 		)
 	}
 
 	// Инициализация обработчика балансировщика.
-	balancerHandler := handler.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
+	balancerHandler := balancer.NewBalancerHandler(logging, servers, cfg.BalancingAlg, cfg.HealthCheck.Interval, cfg.HealthCheck.Timeout)
 
 	// Инициализация балансировщика.
-	srv := server.NewHTTPServer(
+	srv := httpserver.NewHTTPServer(
 		net.JoinHostPort(cfg.HTTPServer.Host, cfg.HTTPServer.Port),
 		balancerHandler.Routes(),
 	)
@@ -154,7 +156,7 @@ func main() {
 		}
 	}()
 
-	newTlsSrv := server.NewHTTPServerWithTLS(
+	newTlsSrv := httpserver.NewHTTPServerWithTLS(
 		net.JoinHostPort(cfg.HTTPSServer.Host, cfg.HTTPSServer.Port),
 		cfg.HTTPSServer.CertFile,
 		cfg.HTTPSServer.KeyFile,

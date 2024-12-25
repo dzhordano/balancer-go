@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/dzhordano/balancer-go/internal/handler"
-	"github.com/dzhordano/balancer-go/internal/server"
+	"github.com/dzhordano/balancer-go/internal/httpserver"
+	"github.com/dzhordano/balancer-go/internal/routes"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 		panic("url is empty. use flag -url")
 	}
 
-	srv := server.NewHTTPServer(url, handler.DefaultRoutes())
+	srv := httpserver.NewHTTPServer(url, routes.DefaultRoutes())
 
 	fmt.Println("starting server on", url)
 
