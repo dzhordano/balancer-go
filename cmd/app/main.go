@@ -88,7 +88,7 @@ func main() {
 
 	// Список всех серверов для последующего закрытия.
 	var serversList []*server.HTTPServer
-	var startupMUX sync.Mutex
+	var startupMU sync.Mutex
 
 	// Запуск серверов в отдельных горутинах, которые останавливаются через определенное время.
 	// Останока серверов также выполняется в отдельных горутинах для избежания блокировки горутины сервера.
@@ -103,7 +103,7 @@ func main() {
 
 			serversList = append(serversList, newSrv)
 
-			startupMUX.Lock()
+			startupMU.Lock()
 			go func() {
 				if cfg.ServersOutage.After != -1 {
 					outAfter := outageAfter.Load().(float64)
@@ -113,7 +113,7 @@ func main() {
 					newSrv.Shutdown(context.Background())
 				}
 			}()
-			startupMUX.Unlock()
+			startupMU.Unlock()
 
 			if err := newSrv.Run(); err != nil {
 				logging.Error("error runnning http server",
@@ -180,10 +180,9 @@ func main() {
 		}
 	}()
 
-	// Запуск сервера метрик отдельной горутиной.
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
-		logging.Info("starting prometheus metrics endpoint on /metrics")
+		logging.Info("starting prometheus server", slog.String("server url", ":9091"))
 		http.ListenAndServe(":9091", nil)
 	}()
 

@@ -21,6 +21,7 @@ func NewDefaultHandler(log *slog.Logger) defaultHandler {
 
 func DefaultRoutes() http.Handler {
 	r := chi.NewRouter()
+	r.Use(instrumentConcretePathRequests)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -28,7 +29,7 @@ func DefaultRoutes() http.Handler {
 		w.Write([]byte("ok"))
 	})
 
-	r.Get("/resource1", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/resource1", func(w http.ResponseWriter, r *http.Request) {
 
 		// Псевдо-задержка.
 		n := rand.Intn(1001)
@@ -41,13 +42,13 @@ func DefaultRoutes() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
 		w.Write([]byte("resource1\n"))
-	}))
+	})
 
-	r.Get("/resource2", instrumentTotalRequests(func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/resource2", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "text/plain")
 		w.Write([]byte("resource2\n"))
-	}))
+	})
 
 	return r
 }

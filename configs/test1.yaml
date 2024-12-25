@@ -30,5 +30,5 @@ logging:
   file: "server.log" 
 
 servers_outage:    
-  after: 10   
+  after: 0   
   multiplier: 1.75

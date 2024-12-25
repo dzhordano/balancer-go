@@ -14,7 +14,7 @@ var (
 		},
 		[]string{"method", "endpoint"},
 	)
-	activeRequests = prometheus.NewGaugeVec(
+	concreteURLRequests = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "http_active_requests",
 			Help: "Number of active HTTP requests",
@@ -25,7 +25,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(requestsTotal)
-	prometheus.MustRegister(activeRequests)
+	prometheus.MustRegister(concreteURLRequests)
 }
 
 func instrumentHandler(endpoint string, next http.HandlerFunc) http.HandlerFunc {
@@ -35,9 +35,9 @@ func instrumentHandler(endpoint string, next http.HandlerFunc) http.HandlerFunc 
 	}
 }
 
-func instrumentTotalRequests(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		activeRequests.WithLabelValues(r.Host + r.URL.Path).Inc()
-		next(w, r)
-	}
+func instrumentConcretePathRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		concreteURLRequests.WithLabelValues(r.Host + r.URL.Path).Inc()
+		next.ServeHTTP(w, r)
+	})
 }

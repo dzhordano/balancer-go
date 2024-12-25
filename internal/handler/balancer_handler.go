@@ -99,6 +99,8 @@ func (b *balancerHandler) forwardRequest(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "no available servers", http.StatusServiceUnavailable)
 		return
 	}
+
+	server.IncrementConnections()
 	defer server.DecrementConnections()
 
 	targetURL := fmt.Sprintf("http://%s%s", server.URL, r.URL.Path)

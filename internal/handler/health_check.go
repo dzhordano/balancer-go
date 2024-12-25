@@ -30,12 +30,10 @@ func (hl *hc) HealthCheck() {
 	time.Sleep(hl.interval)
 
 	for {
-		downServers := hl.balancer.DownServers()
 		aliveServers := hl.balancer.AliveServers()
+		downServers := hl.balancer.DownServers()
 
-		if len(hl.balancer.AliveServers()) == 0 {
-			return
-		}
+		iSub := 0
 
 		for i := range aliveServers {
 			start := time.Now()
@@ -43,8 +41,9 @@ func (hl *hc) HealthCheck() {
 			if err != nil {
 				hl.log.Info("HEALTHCHECK: failed to get health check", slog.String("server", aliveServers[i].URL), slog.String("error", err.Error()))
 
-				hl.balancer.AddDownServer(aliveServers[i])
-				hl.balancer.RemoveAliveServer(i)
+				hl.balancer.AddDownServer(aliveServers[i-iSub])
+				hl.balancer.RemoveAliveServer(i - iSub)
+				iSub++
 
 				continue
 			}
@@ -53,8 +52,9 @@ func (hl *hc) HealthCheck() {
 			if resp.StatusCode != http.StatusOK {
 				hl.log.Info("HEALTHCHECK: server is not alive", slog.String("server", aliveServers[i].URL), slog.Int("status_code", resp.StatusCode))
 
-				hl.balancer.AddDownServer(aliveServers[i])
-				hl.balancer.RemoveAliveServer(i)
+				hl.balancer.AddDownServer(aliveServers[i-iSub])
+				hl.balancer.RemoveAliveServer(i - iSub)
+				iSub++
 
 				continue
 			}
@@ -63,36 +63,41 @@ func (hl *hc) HealthCheck() {
 			if elapsed > hl.timeout {
 				hl.log.Info("HEALTHCHECK: server is not alive", slog.String("server", aliveServers[i].URL), slog.Duration("elapsed", elapsed))
 
-				hl.balancer.AddDownServer(aliveServers[i])
-				hl.balancer.RemoveAliveServer(i)
+				hl.balancer.AddDownServer(aliveServers[i-iSub])
+				hl.balancer.RemoveAliveServer(i - iSub)
+				iSub++
 
 				continue
 			}
 		}
 
-		if len(downServers) > 0 {
-			for i := range downServers {
-				start := time.Now()
-				resp, err := http.Get(fmt.Sprintf("http://%s/health", downServers[i].URL))
-				if err != nil {
-					break
-				}
-				resp.Body.Close()
+		iSub = 0
 
-				if resp.StatusCode != http.StatusOK {
-					break
-				}
-
-				elapsed := time.Since(start)
-				if elapsed > hl.timeout {
-					break
-				}
-
-				hl.log.Info("HEALTHCHECK: server is alive", slog.String("server", downServers[i].URL), slog.Duration("elapsed", elapsed))
-
-				hl.balancer.AddAliveServer(downServers[i])
+		for i := range downServers {
+			start := time.Now()
+			resp, err := http.Get(fmt.Sprintf("http://%s/health", downServers[i].URL))
+			if err != nil {
+				continue
 			}
+			resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				continue
+			}
+
+			elapsed := time.Since(start)
+			if elapsed > hl.timeout {
+				continue
+			}
+
+			hl.log.Info("HEALTHCHECK: server is alive", slog.String("server", downServers[i].URL), slog.Duration("elapsed", elapsed))
+
+			hl.balancer.AddAliveServer(downServers[i-iSub])
+			hl.balancer.RemoveDownServer(i - iSub)
+			iSub++
 		}
+
+		hl.log.Info("HEALTHCHECK: done", slog.Int("alive", len(hl.balancer.AliveServers())), slog.Int("down", len(hl.balancer.DownServers())))
 
 		time.Sleep(hl.interval)
 	}
