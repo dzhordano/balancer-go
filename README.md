@@ -12,6 +12,6 @@
 
 #### ToFix
 
-concurrent request handling + caching responses
-metrics poorly made
-separate servers appending and removing from balancers
+- concurrent request handling + caching responses
+- metrics poorly made
+- separate servers appending and removing from balancers
